@@ -1,4 +1,5 @@
 from itertools import cycle
+from textual.widgets import Placeholder
 
 from textual.app import App
 from textual import events
@@ -20,16 +21,13 @@ class TTTBox(Widget,can_focus=False):
 
     mouse_over = Reactive(False)
     is_selected = Reactive(False)
-    color = ""
+    color = Reactive("")
 
     def render(self) -> Panel:
-        self.log(f"COLOR1: {self.color}")
         style = ""
         if self.is_selected:
-            self.log(f"COLOR3: {self.color}")
             style = "on"
         else:
-            self.log(f"COLOR2: {self.color}")
             if self.mouse_over:
                 self.color = "grey82 "
             else:
@@ -80,6 +78,16 @@ class TTTBoard(GridView):
     rows = 3
     columns = 3
 
+    show_end_panel = Reactive(False)
+    won = Reactive(False)
+
+    def watch_won(self,won: bool):
+        win, indexes = self.is_winner()
+        self.log(f"{indexes}")
+        for r,c in indexes:
+            tile = self.board_access(r,c,self.rows)
+            self.log(f"accessing tile {tile}")
+            tile.color = "bright_white"
 
     def win_indexes(self, n):
         # Rows
@@ -93,16 +101,16 @@ class TTTBoard(GridView):
         # Diagonal top right to bottom left
         yield [(i, n - 1 - i) for i in range(n)]
 
-    def is_winner(self, board, color):
-        board_rows = 3
-        # weird formula is due to the boexes just being in a list ratehr than 2d list
-        for indexes in self.win_indexes(board_rows):
-            self.log(f"hi {indexes}")
-            self.log(f"color: {self.current_turn.color}")
+    def board_access(self,r,c,n):
+        """"Helper function, calculates position in 1D array of board tiles"""
+        return self.board[((r*n)+c)]
 
-            if all((board[((r*board_rows)+c)].color == color )for r, c in indexes):
-                return True
-        return False
+    def is_winner(self):
+        # weird formula is due to the boexes just being in a list ratehr than 2d list
+        for indexes in self.win_indexes(self.rows):
+            if all((self.board_access(r,c,self.rows).color == self.current_turn.color )for r, c in indexes):
+                return True, indexes
+        return False,[]
 
     def init_game(self):
         # start turn counting
@@ -112,7 +120,8 @@ class TTTBoard(GridView):
         self.current_turn = next(self.player_cycle)
 
     def reset_game(self):
-        [box.reset_tttbox() for box in self.board]
+        for box in self.board:
+            box.reset_tttbox() 
 
     def on_mount(self) -> None:
         self.init_game()
@@ -126,18 +135,23 @@ class TTTBoard(GridView):
         # give name to each area and populate board 
         area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
         self.board = [TTTBox(name=area_names[_]) for _ in range(self.rows*self.columns)]
-        self.log(f"{self.board}")
+
         self.grid.place(*self.board)
+
+        # end_game_panel = PlaceHolder("")
+        # # end_game_panel.visible = False
+        # self.grid.place()
 
     def handle_tttbox_click(self, message: TTTBoxClick) -> None:
         """A message sent by the TTTBox button"""
         assert isinstance(message.sender, TTTBox)
 
-        win = self.is_winner(self.board, self.current_turn.color)
+        win,indexes = self.is_winner()
         if win:
             self.log("WIN")
+            self.won = True
             # TODO: Show win Panel
-            self.reset_game()
+            # self.reset_game()
         else:
             self.switch_turns()
 
@@ -158,7 +172,11 @@ class TextTacToe(App):
         """Bind keys with the app loads (but before entering application mode)"""
         await self.bind("q", "quit", "Quit")
         await self.bind("escape", "quit", "Quit")
+        await self.bind("r", "reset_board", "Reset Game")
 
+
+    async def action_reset_board(self):
+        self.game_board.reset_game()
 
 
     async def on_mount(self) -> None:
@@ -172,7 +190,13 @@ class TextTacToe(App):
         await self.view.dock(self.info_panel, edge="left",size = 32)
         await self.view.dock(self.game_board, edge="top")
 
+        self.end_game_panel = Placeholder(name="end_panel")
+        # self.end_game_panel.visible = False
+        await self.view.dock(self.end_game_panel, edge="top",size=10,z=1)
+        self.end_game_panel.layout_offset_y = -10
+
+
 
 
 if __name__ == "__main__":
-    TextTacToe.run(title = "TicTacToe2",log="textual.log",  log_verbosity=3)
+    TextTacToe.run(title = "TextTacToe",log="textual.log",  log_verbosity=3)
