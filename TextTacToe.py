@@ -3,7 +3,7 @@ from textual.widgets import Placeholder
 
 from textual.app import App
 from textual import events
-from textual.widgets import Footer, Header
+from textual.widgets import Footer, Header, Button
 from textual.widget import Widget
 from textual.reactive import Reactive
 from textual.views import GridView
@@ -13,28 +13,36 @@ from rich.panel import Panel
 from rich import box
 from rich.console import RenderableType
 
+import asyncio
+
 # TODO: add info in messages about player 
 class TTTBoxClick(Message):
+    """A Message meant for the Board and App to update game info"""
     pass
 
 class TTTBox(Widget,can_focus=False):
+    """A interactable box in TicTacToe widget"""
 
     mouse_over = Reactive(False)
     is_selected = Reactive(False)
     color = Reactive("")
+    disable = False
 
+    # TODO: probably dont want to change color as it causes re-render
     def render(self) -> Panel:
-        style = ""
-        if self.is_selected:
+        if not self.disable:
             style = "on"
-        else:
-            if self.mouse_over:
-                self.color = "grey82 "
+            if self.is_selected:
+                style = "on"
             else:
-                self.color = "grey35"
+                if self.mouse_over:
+                    self.color = "grey82 "
+                else:
+                    self.color = "grey35"
 
-        r = Panel(renderable="", style=f"{style} {self.color}")
-        return r
+            r = Button("", style=f"{style} {self.color}")
+            # r = Panel(renderable="", style=f"{style} {self.color}")
+            return r
 
     def reset_tttbox(self) -> None:
         self.is_selected = False
@@ -67,9 +75,10 @@ class Player():
 
 # TODO: add internal board logic that tracks player turn, colors, board status (Win vs Tie)
 class TTTBoard(GridView):
+    """TicTacToe Board widget"""
 
-    player1 = Player("Player1",color="red")
-    player2 = Player("Player2",color="blue")
+    player1 = Player("Player1",color="rgb(0,161,162)")
+    player2 = Player("Player2",color="yellow")
     current_turn = player1
 
     player_list = [player1, player2]
@@ -82,14 +91,17 @@ class TTTBoard(GridView):
     won = Reactive(False)
 
     def watch_won(self,won: bool):
-        win, indexes = self.is_winner()
-        self.log(f"{indexes}")
-        for r,c in indexes:
-            tile = self.board_access(r,c,self.rows)
-            self.log(f"accessing tile {tile}")
-            tile.color = "bright_white"
+        if won:
+            win, indexes = self.is_winner()
+            self.log(f"{indexes}")
+            for r,c in indexes:
+                tile = self.board_access(r,c,self.rows)
+                self.log(f"accessing tile {tile}")
+                tile.color = "bright_white"
+
 
     def win_indexes(self, n):
+        """Compute Win indexes for TicTacToe"""
         # Rows
         for r in range(n):
             yield [(r, c) for c in range(n)]
@@ -106,6 +118,7 @@ class TTTBoard(GridView):
         return self.board[((r*n)+c)]
 
     def is_winner(self):
+        """Checks if current board arengement is a winning combinationS"""
         # weird formula is due to the boexes just being in a list ratehr than 2d list
         for indexes in self.win_indexes(self.rows):
             if all((self.board_access(r,c,self.rows).color == self.current_turn.color )for r, c in indexes):
@@ -113,15 +126,19 @@ class TTTBoard(GridView):
         return False,[]
 
     def init_game(self):
+        """Initializes Game turns"""
         # start turn counting
         self.switch_turns()
 
     def switch_turns(self):
+        """Switched turns to next player in the cycle"""
         self.current_turn = next(self.player_cycle)
 
     def reset_game(self):
+        """Resets the game board """
         for box in self.board:
             box.reset_tttbox() 
+        self.won = False
 
     def on_mount(self) -> None:
         self.init_game()
@@ -143,7 +160,8 @@ class TTTBoard(GridView):
         # self.grid.place()
 
     def handle_tttbox_click(self, message: TTTBoxClick) -> None:
-        """A message sent by the TTTBox button"""
+        """Handle a TTTBoxClick"""
+        # TODO: this could possbly be replaced by watchers, action, and compute functions
         assert isinstance(message.sender, TTTBox)
 
         win,indexes = self.is_winner()
@@ -157,11 +175,13 @@ class TTTBoard(GridView):
 
 
 class GameInfoPanel(Widget):
+    """An info panel meant to display player details"""
+    # TODO: switch to a grid view with panels displaying Player info
 
     content: Reactive[RenderableType] = Reactive("")
 
     def render(self) -> Panel:
-            return Panel("game info content", box=box.ROUNDED, style="dodger_blue3") 
+            return Panel("game info content", box=box.ROUNDED, style="turquoise2") 
 
 
 # TODO: app should track wins losses, and relay that to info game panel
@@ -183,9 +203,10 @@ class TextTacToe(App):
 
         self.info_panel = GameInfoPanel()
         self.game_board = TTTBoard()
+        self.footer = Footer()
         
-        await self.view.dock(Header(style="none"))
-        await self.view.dock(Footer(),edge="bottom")
+        await self.view.dock(Header(style="turquoise2"))
+        await self.view.dock(self.footer,edge="bottom")
 
         await self.view.dock(self.info_panel, edge="left",size = 32)
         await self.view.dock(self.game_board, edge="top")
