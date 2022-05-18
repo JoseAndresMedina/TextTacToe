@@ -10,6 +10,8 @@ from textual.views import GridView
 from textual.message import Message, MessageTarget
 
 from rich.panel import Panel
+from rich.align import Align
+from rich.pretty import Pretty
 from rich import box
 from rich.console import RenderableType
 
@@ -140,6 +142,8 @@ class TTTBoard(GridView):
             box.reset_tttbox() 
         self.won = False
 
+
+    # TODO: test speed if made async 
     def on_mount(self) -> None:
         self.init_game()
         self.grid.set_align("center", "center")    
@@ -174,14 +178,41 @@ class TTTBoard(GridView):
             self.switch_turns()
 
 
-class GameInfoPanel(Widget):
+class PlayerInfoBox(Widget,):
+
+    mouse_over: Reactive[bool] = Reactive(False)
+    style: Reactive[str] = Reactive("")
+
+    def __init__(self, *, name= None, height = None) -> None:
+        super().__init__(name=name)
+        self.height = height
+
+    def render(self) -> RenderableType:
+        return Panel(
+                Align.center(Pretty(self, no_wrap=True, overflow="ellipsis"), vertical="middle"),
+            title="Player 1",
+            border_style="green" if self.mouse_over else "blue",
+            box=box.ROUNDED,
+            )
+
+    async def on_focus(self, event: events.Focus) -> None:
+        self.has_focus = True
+
+    async def on_blur(self, event: events.Blur) -> None:
+        self.has_focus = False
+
+
+class GameInfoPanel(GridView):
     """An info panel meant to display player details"""
     # TODO: switch to a grid view with panels displaying Player info
 
-    content: Reactive[RenderableType] = Reactive("")
+    def on_mount(self):
 
-    def render(self) -> Panel:
-            return Panel("game info content", box=box.ROUNDED, style="turquoise2") 
+        self.grid.add_column(name="left", min_size=10)
+        self.grid.add_row(name ="row", fraction=1, repeat=3, max_size=10)
+        self.grid.place(PlayerInfoBox(name = "InfoPane1"))
+
+        self.grid.place(PlayerInfoBox(name="InfoPane2"))
 
 
 # TODO: app should track wins losses, and relay that to info game panel
@@ -201,20 +232,20 @@ class TextTacToe(App):
 
     async def on_mount(self) -> None:
 
-        self.info_panel = GameInfoPanel()
         self.game_board = TTTBoard()
         self.footer = Footer()
         
         await self.view.dock(Header(style="turquoise2"))
         await self.view.dock(self.footer,edge="bottom")
-
-        await self.view.dock(self.info_panel, edge="left",size = 32)
+        await self.view.dock(GameInfoPanel(),edge="left",size=40)
         await self.view.dock(self.game_board, edge="top")
 
-        self.end_game_panel = Placeholder(name="end_panel")
+        
+
+        # self.end_game_panel = Placeholder(name="end_panel")
         # self.end_game_panel.visible = False
-        await self.view.dock(self.end_game_panel, edge="top",size=10,z=1)
-        self.end_game_panel.layout_offset_y = -10
+        # await self.view.dock(self.end_game_panel, edge="top",size=10,z=1)
+        # self.end_game_panel.layout_offset_y = -10
 
 
 
