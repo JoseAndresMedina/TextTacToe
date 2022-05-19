@@ -31,9 +31,16 @@ class TTTBox(Widget,can_focus=False):
     mouse_over = Reactive(False)
     is_selected = Reactive(False)
     color = Reactive("")
+    winner = Reactive(False)
     disable = False
 
-    # TODO: probably dont want to change color as it causes re-render
+    # TODO: add input for board it belongs to instead of refering to parent
+    # def __init__()
+
+    # TODO: 
+    # - probably dont want to change color as it causes re-render
+    # - also disable tiles once game has been won
+    # - focus on setting color here, no where else
     def render(self) -> Panel:
         if not self.disable:
             style = "on"
@@ -63,7 +70,8 @@ class TTTBox(Widget,can_focus=False):
         if not self.is_selected:
             self.color = self._parent.current_turn.color
             self.is_selected=True
-            self.emit_no_wait(TTTBoxClick(self))
+            self._parent.react_box_click()
+            # self.emit_no_wait(TTTBoxClick(self))
 
 
 class Player():
@@ -113,7 +121,6 @@ class TTTBoard(GridView):
                 tile = self.board_access(r, c, self.rows)
                 tile.color = "bright_white"
 
-
     def win_indexes(self, n):
         """Compute Win indexes for TicTacToe"""
         # Rows
@@ -132,7 +139,7 @@ class TTTBoard(GridView):
         return self.board[((r*n)+c)]
 
     def is_winner(self):
-        """Checks if current board arengement is a winning combinationS"""
+        """Checks if current board arengement is a winning combination"""
         # weird formula is due to the boexes just being in a list ratehr than 2d list
         for indexes in self.win_indexes(self.rows):
             if all((self.board_access(r,c,self.rows).color == self.current_turn.color )for r, c in indexes):
@@ -175,16 +182,17 @@ class TTTBoard(GridView):
         # # end_game_panel.visible = False
         # self.grid.place()
 
-    def handle_tttbox_click(self, message: TTTBoxClick) -> None:
+    # def handle_tttbox_click(self, message: TTTBoxClick) -> None:
+    def react_box_click(self):
         """Handle a TTTBoxClick"""
         # TODO: this could possbly be replaced by watchers, action, and compute functions
-        assert isinstance(message.sender, TTTBox)
+        # assert isinstance(message.sender, TTTBox)
 
         win,indexes = self.is_winner()
         if win:
             self.won = True
+            self.log("responding")
             # TODO: Show win Panel
-            # self.reset_game()
         else:
             self.switch_turns()
 
@@ -199,23 +207,31 @@ class PlayerInfoBox(Widget,):
     def __init__(self, *, name= None,player =None) -> None:
         super().__init__(name=name)
         self.player = player
-        self.content = f"Name: {self.player.name} "\
-                    f"Wins: {self.player.wins}"
+        # self.content =  "hello \n hu"
+        self.content =  f"Name: {self.player.name}\n"\
+                        f"Wins: {self.player.wins}"
 
     def render(self) -> RenderableType:
         return Panel(
-                Align.left(
-                    Pretty(
-                        self.content, 
-                        no_wrap=True, 
-                        overflow="ellipsis",
-                        ), 
-                    vertical="top"
-                    ),
-            title=f"{self.player.name}",
-            border_style="green" if self.mouse_over else f"{self.player.color}",
-            box=box.ROUNDED,
-            )
+                Align.left(self.content),
+                title=f"{self.player.name}",
+                border_style="green" if self.mouse_over else f"{self.player.color}",
+                box=box.ROUNDED,
+                )
+
+        # return Panel(
+        #         Align.left(
+        #             Pretty(
+        #                 self.content, 
+        #                 no_wrap=True, 
+        #                 overflow="ellipsis",
+        #                 ), 
+        #             vertical="top"
+        #             ),
+        #     title=f"{self.player.name}",
+        #     border_style="green" if self.mouse_over else f"{self.player.color}",
+        #     box=box.ROUNDED,
+        #     )
 
     async def on_focus(self, event: events.Focus) -> None:
         self.has_focus = True
@@ -276,8 +292,6 @@ class TextTacToe(App):
         # bug where size needs to be set but i dont want it
         await self.view.dock(self.info_panel_grid,edge="left",size=30)
         await self.view.dock(self.game_board, edge="right")
-        # await self.view.dock(self.game_board, edge="left")
-
         
 
         # self.end_game_panel = Placeholder(name="end_panel")
