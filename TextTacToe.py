@@ -1,4 +1,5 @@
 from itertools import cycle
+from tkinter.ttk import Style
 from textual.widgets import Placeholder
 
 from textual.app import App
@@ -9,9 +10,11 @@ from textual.reactive import Reactive
 from textual.views import GridView
 from textual.message import Message, MessageTarget
 
+from rich.console import Console
 from rich.panel import Panel
 from rich.align import Align
 from rich.pretty import Pretty
+from rich.text import Text
 from rich import box
 from rich.console import RenderableType
 
@@ -38,7 +41,7 @@ class TTTBox(Widget,can_focus=False):
                 style = "on"
             else:
                 if self.mouse_over:
-                    self.color = "grey82 "
+                    self.color = self._parent.current_turn.color
                 else:
                     self.color = "grey35"
 
@@ -60,7 +63,6 @@ class TTTBox(Widget,can_focus=False):
         if not self.is_selected:
             self.color = self._parent.current_turn.color
             self.is_selected=True
-            # self._parent.switch_turns()
             self.emit_no_wait(TTTBoxClick(self))
 
 
@@ -69,22 +71,15 @@ class Player():
     def __init__(self, name:str, color:str=None):
         self.name = name
         self.color = color
-        self.name = ""
         self.wins = 0
 
     def add_win(self):
         self.wins+=1
 
 # TODO: add internal board logic that tracks player turn, colors, board status (Win vs Tie)
+    #add logic for when there is a tie 
 class TTTBoard(GridView):
     """TicTacToe Board widget"""
-
-    player1 = Player("Player1",color="rgb(0,161,162)")
-    player2 = Player("Player2",color="yellow")
-    current_turn = player1
-
-    player_list = [player1, player2]
-    player_cycle = cycle(player_list)
 
     rows = 3
     columns = 3
@@ -92,13 +87,30 @@ class TTTBoard(GridView):
     show_end_panel = Reactive(False)
     won = Reactive(False)
 
+    def __init__(self, player1: Player = None, player2:Player = None):
+        super().__init__()
+
+        default_pl = Player("Player1",color="red")
+        default_p2 = Player("Player2",color="blue")
+        if not player1:
+            self.player1 = default_pl
+            self.player2 = default_p2
+        elif (not player2):
+            self.player1 = player1
+            self.player2 = default_p2
+        else:
+            self.player1 = player1
+            self.player2 = player2
+        
+        self.current_turn = self.player1
+        self.player_list = [self.player1, self.player2]
+        self.player_cycle = cycle(self.player_list)
+
     def watch_won(self,won: bool):
         if won:
             win, indexes = self.is_winner()
-            self.log(f"{indexes}")
             for r,c in indexes:
-                tile = self.board_access(r,c,self.rows)
-                self.log(f"accessing tile {tile}")
+                tile = self.board_access(r, c, self.rows)
                 tile.color = "bright_white"
 
 
@@ -150,8 +162,8 @@ class TTTBoard(GridView):
         self.grid.set_gap(2,1)
 
         # add rows and columns with repeat arg
-        self.grid.add_column(name="col", min_size=5, max_size=10,repeat=3)
-        self.grid.add_row(name="row", min_size=5, max_size=5,repeat=3)
+        self.grid.add_column(name="col", min_size=2, max_size=10,repeat=3)
+        self.grid.add_row(name="row", min_size=2, max_size=5,repeat=3)
         
         # give name to each area and populate board 
         area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
@@ -170,7 +182,6 @@ class TTTBoard(GridView):
 
         win,indexes = self.is_winner()
         if win:
-            self.log("WIN")
             self.won = True
             # TODO: Show win Panel
             # self.reset_game()
@@ -182,16 +193,27 @@ class PlayerInfoBox(Widget,):
 
     mouse_over: Reactive[bool] = Reactive(False)
     style: Reactive[str] = Reactive("")
+    content = Reactive("")
+    player = None
 
-    def __init__(self, *, name= None, height = None) -> None:
+    def __init__(self, *, name= None,player =None) -> None:
         super().__init__(name=name)
-        self.height = height
+        self.player = player
+        self.content = f"Name: {self.player.name} "\
+                    f"Wins: {self.player.wins}"
 
     def render(self) -> RenderableType:
         return Panel(
-                Align.center(Pretty(self, no_wrap=True, overflow="ellipsis"), vertical="middle"),
-            title="Player 1",
-            border_style="green" if self.mouse_over else "blue",
+                Align.left(
+                    Pretty(
+                        self.content, 
+                        no_wrap=True, 
+                        overflow="ellipsis",
+                        ), 
+                    vertical="top"
+                    ),
+            title=f"{self.player.name}",
+            border_style="green" if self.mouse_over else f"{self.player.color}",
             box=box.ROUNDED,
             )
 
@@ -201,22 +223,34 @@ class PlayerInfoBox(Widget,):
     async def on_blur(self, event: events.Blur) -> None:
         self.has_focus = False
 
+    async def on_enter(self, event: events.Enter) -> None:
+        self.mouse_over = True
+
+    async def on_leave(self, event: events.Leave) -> None:
+        self.mouse_over = False
+
 
 class GameInfoPanel(GridView):
     """An info panel meant to display player details"""
-    # TODO: switch to a grid view with panels displaying Player info
+
+    def __init__(self, players = None):
+        super().__init__()
+        self.players = players
 
     def on_mount(self):
 
-        self.grid.add_column(name="left", min_size=10)
+        self.grid.add_column(name="left", min_size=10,max_size=30)
         self.grid.add_row(name ="row", fraction=1, repeat=3, max_size=10)
-        self.grid.place(PlayerInfoBox(name = "InfoPane1"))
-
-        self.grid.place(PlayerInfoBox(name="InfoPane2"))
+        for p in self.players:
+            self.grid.place(PlayerInfoBox(name = "InfoPanel", player=p))
 
 
 # TODO: app should track wins losses, and relay that to info game panel
 class TextTacToe(App):
+
+    player1 = Player("Alice",color="rgb(0,161,162)")
+    player2 = Player("Bob",color="yellow")
+    players = [player1, player2]
 
     async def on_load(self) -> None:
     # async def on_load(self, event: events.Load) -> None:
@@ -231,14 +265,18 @@ class TextTacToe(App):
 
 
     async def on_mount(self) -> None:
-
-        self.game_board = TTTBoard()
-        self.footer = Footer()
         
-        await self.view.dock(Header(style="turquoise2"))
+        self.game_board = TTTBoard(self.player1,self.player2)
+        self.footer = Footer()
+        self.info_panel_grid = GameInfoPanel(self.players)
+        self.header = Header(style="white on black")
+
+        await self.view.dock(self.header,edge = "top")
         await self.view.dock(self.footer,edge="bottom")
-        await self.view.dock(GameInfoPanel(),edge="left",size=40)
-        await self.view.dock(self.game_board, edge="top")
+        # bug where size needs to be set but i dont want it
+        await self.view.dock(self.info_panel_grid,edge="left",size=30)
+        await self.view.dock(self.game_board, edge="right")
+        # await self.view.dock(self.game_board, edge="left")
 
         
 
