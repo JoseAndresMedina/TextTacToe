@@ -1,5 +1,4 @@
 from itertools import cycle
-from tkinter.ttk import Style
 from textual.widgets import Placeholder
 
 from textual.app import App
@@ -21,7 +20,13 @@ from rich.console import RenderableType
 import asyncio
 
 # TODO: add info in messages about player 
-class TTTBoxClick(Message):
+class GameStatusNote(Message):
+
+    def __init__(self, sender, winner=None, ) -> None:
+        super().__init__(sender)
+        self.winner = winner
+
+
     """A Message meant for the Board and App to update game info"""
     pass
 
@@ -30,37 +35,35 @@ class TTTBox(Widget,can_focus=False):
 
     mouse_over = Reactive(False)
     is_selected = Reactive(False)
-    color = Reactive("")
     winner = Reactive(False)
+    # color = Reactive("")
+    color = ""
     disable = False
 
     def __init__(self, board, name=None):
         super().__init__(name=name)
         self.board = board
 
-
+    #set color here, no where else
     # TODO: 
-    # - probably dont want to change color as it causes re-render
-    # - also disable tiles once game has been won
-    # - focus on setting color here, no where else
+    # - also disable tiles once game has been completed
     def render(self) -> Panel:
         if not self.disable:
-            style = "on"
-            if self.is_selected:
-                style = "on"
-            else:
+            if not self.is_selected:
                 if self.mouse_over:
                     self.color = self.board.current_turn.color
                 else:
                     self.color = "grey35"
+            else:
+                if self.winner:
+                    self.color = "bright_white"
 
-            r = Button("", style=f"{style} {self.color}")
-            # r = Panel(renderable="", style=f"{style} {self.color}")
+            r = Button("", style=f"on {self.color}")
             return r
 
     def reset_tttbox(self) -> None:
         self.is_selected = False
-        self.panel_color = ""
+        self.winner = False
 
     def on_enter(self) -> None:
         self.mouse_over = True
@@ -70,11 +73,8 @@ class TTTBox(Widget,can_focus=False):
 
     def on_click(self) -> None:
         if not self.is_selected:
-            self.color = self.board.current_turn.color
             self.is_selected=True
             self.board.react_box_click()
-            # self.emit_no_wait(TTTBoxClick(self))
-
 
 class Player():
 
@@ -86,8 +86,7 @@ class Player():
     def add_win(self):
         self.wins+=1
 
-# TODO: add internal board logic that tracks player turn, colors, board status (Win vs Tie)
-    #add logic for when there is a tie 
+# TODO: add internal board logic that tracks Tie's
 class TTTBoard(GridView):
     """TicTacToe Board widget"""
 
@@ -95,7 +94,6 @@ class TTTBoard(GridView):
     columns = 3
 
     show_end_panel = Reactive(False)
-    won = Reactive(False)
 
     def __init__(self, player1: Player = None, player2:Player = None):
         super().__init__()
@@ -116,12 +114,12 @@ class TTTBoard(GridView):
         self.player_list = [self.player1, self.player2]
         self.player_cycle = cycle(self.player_list)
 
-    def watch_won(self,won: bool):
-        if won:
-            win, indexes = self.is_winner()
-            for r,c in indexes:
-                tile = self.board_access(r, c, self.rows)
-                tile.color = "bright_white"
+    def display_win(self):
+        win, indexes = self.is_winner()
+        self.log(f"WIN INDEXES: {indexes}")
+        for r,c in indexes:
+            tile = self.board_access(r, c, self.rows)
+            tile.winner = True
 
     def win_indexes(self, n):
         """Compute Win indexes for TicTacToe"""
@@ -184,16 +182,14 @@ class TTTBoard(GridView):
         # # end_game_panel.visible = False
         # self.grid.place()
 
-    # def handle_tttbox_click(self, message: TTTBoxClick) -> None:
     def react_box_click(self):
         """Handle a TTTBoxClick"""
         # TODO: this could possbly be replaced by watchers, action, and compute functions
-        # assert isinstance(message.sender, TTTBox)
-
         win,indexes = self.is_winner()
         if win:
-            self.won = True
-            self.log("responding")
+            self.current_turn.add_win()
+            self.emit_no_wait(GameStatusNote(self,self.current_turn))
+            self.display_win()
             # TODO: Show win Panel
         else:
             self.switch_turns()
@@ -209,7 +205,6 @@ class PlayerInfoBox(Widget,):
     def __init__(self, *, name= None,player =None) -> None:
         super().__init__(name=name)
         self.player = player
-        # self.content =  "hello \n hu"
         self.content =  f"Name: {self.player.name}\n"\
                         f"Wins: {self.player.wins}"
 
@@ -221,19 +216,10 @@ class PlayerInfoBox(Widget,):
                 box=box.ROUNDED,
                 )
 
-        # return Panel(
-        #         Align.left(
-        #             Pretty(
-        #                 self.content, 
-        #                 no_wrap=True, 
-        #                 overflow="ellipsis",
-        #                 ), 
-        #             vertical="top"
-        #             ),
-        #     title=f"{self.player.name}",
-        #     border_style="green" if self.mouse_over else f"{self.player.color}",
-        #     box=box.ROUNDED,
-        #     )
+    def new_content(self, player):
+        self.player = player
+        self.content =  f"Name: {self.player.name}\n"\
+                        f"Wins: {self.player.wins}"
 
     async def on_focus(self, event: events.Focus) -> None:
         self.has_focus = True
@@ -259,9 +245,14 @@ class GameInfoPanel(GridView):
 
         self.grid.add_column(name="left", min_size=10,max_size=30)
         self.grid.add_row(name ="row", fraction=1, repeat=3, max_size=10)
-        for p in self.players:
-            self.grid.place(PlayerInfoBox(name = "InfoPanel", player=p))
+        self.info_panels = [PlayerInfoBox(name = "InfoPanel", player=p) for p in self.players]
+        
+        self.grid.place(*self.info_panels)
 
+    def update_panels(self, player):
+        for p in self.info_panels:
+            if p.player.name == player.name:
+                p.new_content(player)
 
 # TODO: app should track wins losses, and relay that to info game panel
 class TextTacToe(App):
@@ -277,19 +268,14 @@ class TextTacToe(App):
         await self.bind("escape", "quit", "Quit")
         await self.bind("r", "reset_board", "Reset Game")
 
-
-    async def action_reset_board(self):
-        self.game_board.reset_game()
-
-
     async def on_mount(self) -> None:
         
         self.game_board = TTTBoard(self.player1,self.player2)
         self.footer = Footer()
         self.info_panel_grid = GameInfoPanel(self.players)
-        # self.header = Header(style="white on black")
+        self.header = Header(style="white on black")
 
-        # await self.view.dock(self.header,edge = "top")
+        await self.view.dock(self.header,edge = "top")
         await self.view.dock(self.footer,edge="bottom")
         # bug where size needs to be set but i dont want it
         await self.view.dock(self.info_panel_grid,edge="left",size=30)
@@ -301,6 +287,16 @@ class TextTacToe(App):
         # await self.view.dock(self.end_game_panel, edge="top",size=10,z=1)
         # self.end_game_panel.layout_offset_y = -10
 
+    async def action_reset_board(self):
+        self.game_board.reset_game()
+
+    async def handle_game_status_note(self, message: GameStatusNote):
+        # handle win
+        if message.winner:
+            self.info_panel_grid.update_panels(message.winner)
+        else:
+            pass
+            # TODO: Handle Ties
 
 
 
