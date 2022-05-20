@@ -34,8 +34,10 @@ class TTTBox(Widget,can_focus=False):
     winner = Reactive(False)
     disable = False
 
-    # TODO: add input for board it belongs to instead of refering to parent
-    # def __init__()
+    def __init__(self, board, name=None):
+        super().__init__(name=name)
+        self.board = board
+
 
     # TODO: 
     # - probably dont want to change color as it causes re-render
@@ -48,7 +50,7 @@ class TTTBox(Widget,can_focus=False):
                 style = "on"
             else:
                 if self.mouse_over:
-                    self.color = self._parent.current_turn.color
+                    self.color = self.board.current_turn.color
                 else:
                     self.color = "grey35"
 
@@ -68,9 +70,9 @@ class TTTBox(Widget,can_focus=False):
 
     def on_click(self) -> None:
         if not self.is_selected:
-            self.color = self._parent.current_turn.color
+            self.color = self.board.current_turn.color
             self.is_selected=True
-            self._parent.react_box_click()
+            self.board.react_box_click()
             # self.emit_no_wait(TTTBoxClick(self))
 
 
@@ -173,8 +175,8 @@ class TTTBoard(GridView):
         self.grid.add_row(name="row", min_size=2, max_size=5,repeat=3)
         
         # give name to each area and populate board 
-        area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
-        self.board = [TTTBox(name=area_names[_]) for _ in range(self.rows*self.columns)]
+        # area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
+        self.board = [TTTBox(self) for _ in range(self.rows*self.columns)]
 
         self.grid.place(*self.board)
 
@@ -285,13 +287,13 @@ class TextTacToe(App):
         self.game_board = TTTBoard(self.player1,self.player2)
         self.footer = Footer()
         self.info_panel_grid = GameInfoPanel(self.players)
-        self.header = Header(style="white on black")
+        # self.header = Header(style="white on black")
 
-        await self.view.dock(self.header,edge = "top")
+        # await self.view.dock(self.header,edge = "top")
         await self.view.dock(self.footer,edge="bottom")
         # bug where size needs to be set but i dont want it
         await self.view.dock(self.info_panel_grid,edge="left",size=30)
-        await self.view.dock(self.game_board, edge="right")
+        await self.view.dock(self.game_board, edge="top")
         
 
         # self.end_game_panel = Placeholder(name="end_panel")
