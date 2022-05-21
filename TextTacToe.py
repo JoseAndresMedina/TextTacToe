@@ -22,9 +22,11 @@ class GameStatusNote(Message):
         self.winner = winner
 
 
-class TTTBox(Widget,can_focus=False):
+class TTTBox(Widget):
     """A interactable box in TicTacToe widget"""
 
+    # winner: denotes whether this box is a part of a winning 3-in-a-row
+    # disable: denotes whether this box is disbaled for interaction, happens on game_over
     mouse_over = Reactive(False)
     is_selected = Reactive(False)
     winner = Reactive(False)
@@ -35,9 +37,6 @@ class TTTBox(Widget,can_focus=False):
         super().__init__(name=name)
         self.board = board
 
-    #set color here, no where else
-    # TODO: 
-    # - also disable tiles once game has been completed
     def render(self) -> Panel:
         if not self.is_selected:
             if self.mouse_over:
@@ -52,10 +51,12 @@ class TTTBox(Widget,can_focus=False):
         return r
 
     def toggle_disable(self):
+        """Used to disable tiles on game over"""
         self.disable = not self.disable
         self.log(f"toggling myslef {self}")
 
     def reset_tttbox(self) -> None:
+        """Resets tile to prepare for next game"""
         self.toggle_disable()
         self.is_selected = False
         self.winner = False
@@ -89,14 +90,13 @@ class Player():
 class TTTBoard(GridView):
     """TicTacToe Board widget"""
 
+    #set of possoble states after a click is received 
     CONTINUE = 0
     WIN = 1
     TIE = 2
 
-
     rows = 3
     columns = 3
-
     show_end_panel = Reactive(False)
 
     def __init__(self, player1: Player = None, player2:Player = None):
@@ -121,25 +121,20 @@ class TTTBoard(GridView):
     # TODO: test speed if made async 
     def on_mount(self) -> None:
         self.init_game()
-        self.grid.set_align("center", "center")    
+        self.grid.set_align("center", "top")    
         self.grid.set_gap(2,1)
-        self.grid.set_gutter(column = 3,row=3)
+        self.grid.set_gutter(column=3,row=3)
 
         # add rows and columns with repeat arg
         self.grid.add_column(name="col", min_size=2, max_size=10,repeat=3)
         self.grid.add_row(name="row", min_size=2, max_size=5,repeat=3)
         
-        # give name to each area and populate board 
-        # area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
         self.board = [TTTBox(self) for _ in range(self.rows*self.columns)]
 
         self.grid.place(*self.board)
 
-        # end_game_panel = PlaceHolder("")
-        # # end_game_panel.visible = False
-        # self.grid.place()
-
     def display_win(self, indexes):
+        """Show winning 3-in-a-row"""
         self.log(f"WIN INDEXES: {indexes}")
         for r,c in indexes:
             tile = self.board_access(r, c, self.rows)
@@ -180,7 +175,6 @@ class TTTBoard(GridView):
 
     def init_game(self):
         """Initializes Game turns"""
-        # start turn counting
         self.switch_turns()
 
     def switch_turns(self):
@@ -195,6 +189,7 @@ class TTTBoard(GridView):
         self.switch_turns()
 
     def toggle_disable(self):
+        """Toggle board interactability"""
         for tile in self.board:
             tile.toggle_disable()
 
@@ -213,12 +208,10 @@ class TTTBoard(GridView):
             self.toggle_disable()
             # self.display_tie()
             # TODO: Show win Panel
-
         else:
             self.switch_turns()
 
-
-class PlayerInfoBox(Widget,):
+class PlayerInfoBox(Widget):
 
     mouse_over: Reactive[bool] = Reactive(False)
     style: Reactive[str] = Reactive("")
@@ -240,6 +233,7 @@ class PlayerInfoBox(Widget,):
                 )
 
     def new_content(self, player):
+        """Update player panel content"""
         self.player = player
         self.content =  f"Name: {self.player.name}\n"\
                         f"Wins: {self.player.wins}"
@@ -267,12 +261,13 @@ class GameInfoPanel(GridView):
     def on_mount(self):
 
         self.grid.add_column(name="left", min_size=10,max_size=30)
-        self.grid.add_row(name ="row", fraction=1, repeat=3, max_size=10)
+        self.grid.add_row(name ="row", fraction=1, repeat=3, max_size=7)
         self.info_panels = [PlayerInfoBox(name = "InfoPanel", player=p) for p in self.players]
         
         self.grid.place(*self.info_panels)
 
     def update_panels(self, player):
+        """Update player panel info"""
         for p in self.info_panels:
             if p.player.name == player.name:
                 p.new_content(player)
@@ -292,6 +287,8 @@ class TextTacToe(App):
         await self.bind("r", "reset_board", "Reset Game")
 
     async def on_mount(self) -> None:
+
+        # app_grid = await self.view.dock_grid()
         
         self.game_board = TTTBoard(self.player1,self.player2)
         self.footer = Footer()
@@ -303,12 +300,6 @@ class TextTacToe(App):
         # bug where size needs to be set but i dont want it
         await self.view.dock(self.info_panel_grid,edge="left",size=30)
         await self.view.dock(self.game_board, edge="top")
-        
-
-        # self.end_game_panel = Placeholder(name="end_panel")
-        # self.end_game_panel.visible = False
-        # await self.view.dock(self.end_game_panel, edge="top",size=10,z=1)
-        # self.end_game_panel.layout_offset_y = -10
 
     async def action_reset_board(self):
         self.game_board.reset_game()
