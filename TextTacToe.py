@@ -1,5 +1,4 @@
 from itertools import cycle
-from textual.widgets import Placeholder
 
 from textual.app import App
 from textual import events
@@ -7,28 +6,21 @@ from textual.widgets import Footer, Header, Button
 from textual.widget import Widget
 from textual.reactive import Reactive
 from textual.views import GridView
-from textual.message import Message, MessageTarget
+from textual.message import Message
 
-from rich.console import Console
 from rich.panel import Panel
 from rich.align import Align
-from rich.pretty import Pretty
-from rich.text import Text
 from rich import box
 from rich.console import RenderableType
 
-import asyncio
 
 # TODO: add info in messages about player 
 class GameStatusNote(Message):
-
+    """A Message meant for the App to update game info"""
     def __init__(self, sender, winner=None, ) -> None:
         super().__init__(sender)
         self.winner = winner
 
-
-    """A Message meant for the Board and App to update game info"""
-    pass
 
 class TTTBox(Widget,can_focus=False):
     """A interactable box in TicTacToe widget"""
@@ -36,7 +28,6 @@ class TTTBox(Widget,can_focus=False):
     mouse_over = Reactive(False)
     is_selected = Reactive(False)
     winner = Reactive(False)
-    # color = Reactive("")
     color = ""
     disable = False
 
@@ -48,33 +39,41 @@ class TTTBox(Widget,can_focus=False):
     # TODO: 
     # - also disable tiles once game has been completed
     def render(self) -> Panel:
-        if not self.disable:
-            if not self.is_selected:
-                if self.mouse_over:
-                    self.color = self.board.current_turn.color
-                else:
-                    self.color = "grey35"
+        if not self.is_selected:
+            if self.mouse_over:
+                self.color = self.board.current_turn.color
             else:
-                if self.winner:
-                    self.color = "bright_white"
+                self.color = "grey35"
+        else:
+            if self.winner:
+                self.color = "bright_white"
 
-            r = Button("", style=f"on {self.color}")
-            return r
+        r = Button("", style=f"on {self.color}")
+        return r
+
+    def toggle_disable(self):
+        self.disable = not self.disable
+        self.log(f"toggling myslef {self}")
 
     def reset_tttbox(self) -> None:
+        self.toggle_disable()
         self.is_selected = False
         self.winner = False
-
-    def on_enter(self) -> None:
-        self.mouse_over = True
-
-    def on_leave(self) -> None:
         self.mouse_over = False
 
+    def on_enter(self) -> None:
+        if not self.disable:
+            self.mouse_over = True
+
+    def on_leave(self) -> None:
+        if not self.disable:
+            self.mouse_over = False
+
     def on_click(self) -> None:
-        if not self.is_selected:
-            self.is_selected=True
-            self.board.react_box_click()
+        if not self.disable:
+            if not self.is_selected:
+                self.is_selected=True
+                self.board.react_box_click()
 
 class Player():
 
@@ -89,6 +88,11 @@ class Player():
 # TODO: add internal board logic that tracks Tie's
 class TTTBoard(GridView):
     """TicTacToe Board widget"""
+
+    CONTINUE = 0
+    WIN = 1
+    TIE = 2
+
 
     rows = 3
     columns = 3
@@ -114,12 +118,33 @@ class TTTBoard(GridView):
         self.player_list = [self.player1, self.player2]
         self.player_cycle = cycle(self.player_list)
 
-    def display_win(self):
-        win, indexes = self.is_winner()
+    # TODO: test speed if made async 
+    def on_mount(self) -> None:
+        self.init_game()
+        self.grid.set_align("center", "center")    
+        self.grid.set_gap(2,1)
+        self.grid.set_gutter(column = 3,row=3)
+
+        # add rows and columns with repeat arg
+        self.grid.add_column(name="col", min_size=2, max_size=10,repeat=3)
+        self.grid.add_row(name="row", min_size=2, max_size=5,repeat=3)
+        
+        # give name to each area and populate board 
+        # area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
+        self.board = [TTTBox(self) for _ in range(self.rows*self.columns)]
+
+        self.grid.place(*self.board)
+
+        # end_game_panel = PlaceHolder("")
+        # # end_game_panel.visible = False
+        # self.grid.place()
+
+    def display_win(self, indexes):
         self.log(f"WIN INDEXES: {indexes}")
         for r,c in indexes:
             tile = self.board_access(r, c, self.rows)
             tile.winner = True
+
 
     def win_indexes(self, n):
         """Compute Win indexes for TicTacToe"""
@@ -140,11 +165,18 @@ class TTTBoard(GridView):
 
     def is_winner(self):
         """Checks if current board arengement is a winning combination"""
-        # weird formula is due to the boexes just being in a list ratehr than 2d list
         for indexes in self.win_indexes(self.rows):
             if all((self.board_access(r,c,self.rows).color == self.current_turn.color )for r, c in indexes):
-                return True, indexes
-        return False,[]
+                return self.WIN, indexes
+
+        selected = 0
+        for tile in self.board:
+            if tile.is_selected:
+                selected+=1
+        if selected ==self.rows*self.columns:
+            return self.TIE,[]
+
+        return self.CONTINUE,[]
 
     def init_game(self):
         """Initializes Game turns"""
@@ -160,37 +192,28 @@ class TTTBoard(GridView):
         for box in self.board:
             box.reset_tttbox() 
         self.won = False
+        self.switch_turns()
 
-
-    # TODO: test speed if made async 
-    def on_mount(self) -> None:
-        self.init_game()
-        self.grid.set_align("center", "center")    
-        self.grid.set_gap(2,1)
-
-        # add rows and columns with repeat arg
-        self.grid.add_column(name="col", min_size=2, max_size=10,repeat=3)
-        self.grid.add_row(name="row", min_size=2, max_size=5,repeat=3)
-        
-        # give name to each area and populate board 
-        # area_names =[f"r{x},c{y}" for x in range(self.columns) for y in range(self.rows)]
-        self.board = [TTTBox(self) for _ in range(self.rows*self.columns)]
-
-        self.grid.place(*self.board)
-
-        # end_game_panel = PlaceHolder("")
-        # # end_game_panel.visible = False
-        # self.grid.place()
+    def toggle_disable(self):
+        for tile in self.board:
+            tile.toggle_disable()
 
     def react_box_click(self):
         """Handle a TTTBoxClick"""
         # TODO: this could possbly be replaced by watchers, action, and compute functions
-        win,indexes = self.is_winner()
-        if win:
+        status,indexes = self.is_winner()
+        if status is self.WIN:
             self.current_turn.add_win()
             self.emit_no_wait(GameStatusNote(self,self.current_turn))
-            self.display_win()
+            self.display_win(indexes)
+            self.toggle_disable()
             # TODO: Show win Panel
+        elif status is self.TIE:
+            self.emit_no_wait(GameStatusNote(self))
+            self.toggle_disable()
+            # self.display_tie()
+            # TODO: Show win Panel
+
         else:
             self.switch_turns()
 
