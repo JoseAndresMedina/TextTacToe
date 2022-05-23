@@ -21,7 +21,6 @@ class GameStatusNote(Message):
         super().__init__(sender)
         self.winner = winner
 
-
 class TTTBox(Widget):
     """A interactable box in TicTacToe widget"""
 
@@ -123,7 +122,7 @@ class TTTBoard(GridView):
         self.init_game()
         self.grid.set_align("center", "top")    
         self.grid.set_gap(2,1)
-        self.grid.set_gutter(column=3,row=3)
+        self.grid.set_gutter(column=3,row=1)
 
         # add rows and columns with repeat arg
         self.grid.add_column(name="col", min_size=2, max_size=10,repeat=3)
@@ -221,8 +220,7 @@ class PlayerInfoBox(Widget):
     def __init__(self, *, name= None,player =None) -> None:
         super().__init__(name=name)
         self.player = player
-        self.content =  f"Name: {self.player.name}\n"\
-                        f"Wins: {self.player.wins}"
+        self.content =  f"Wins: {self.player.wins}"
 
     def render(self) -> RenderableType:
         return Panel(
@@ -235,8 +233,7 @@ class PlayerInfoBox(Widget):
     def new_content(self, player):
         """Update player panel content"""
         self.player = player
-        self.content =  f"Name: {self.player.name}\n"\
-                        f"Wins: {self.player.wins}"
+        self.content = f"Wins: {self.player.wins}"
 
     async def on_focus(self, event: events.Focus) -> None:
         self.has_focus = True
@@ -250,29 +247,6 @@ class PlayerInfoBox(Widget):
     async def on_leave(self, event: events.Leave) -> None:
         self.mouse_over = False
 
-
-class GameInfoPanel(GridView):
-    """An info panel meant to display player details"""
-
-    def __init__(self, players = None):
-        super().__init__()
-        self.players = players
-
-    def on_mount(self):
-
-        self.grid.add_column(name="left", min_size=10,max_size=30)
-        self.grid.add_row(name ="row", fraction=1, repeat=3, max_size=7)
-        self.info_panels = [PlayerInfoBox(name = "InfoPanel", player=p) for p in self.players]
-        
-        self.grid.place(*self.info_panels)
-
-    def update_panels(self, player):
-        """Update player panel info"""
-        for p in self.info_panels:
-            if p.player.name == player.name:
-                p.new_content(player)
-
-# TODO: app should track wins losses, and relay that to info game panel
 class TextTacToe(App):
 
     player1 = Player("Alice",color="rgb(0,161,162)")
@@ -280,7 +254,6 @@ class TextTacToe(App):
     players = [player1, player2]
 
     async def on_load(self) -> None:
-    # async def on_load(self, event: events.Load) -> None:
         """Bind keys with the app loads (but before entering application mode)"""
         await self.bind("q", "quit", "Quit")
         await self.bind("escape", "quit", "Quit")
@@ -288,31 +261,46 @@ class TextTacToe(App):
 
     async def on_mount(self) -> None:
 
-        # app_grid = await self.view.dock_grid()
-        
         self.game_board = TTTBoard(self.player1,self.player2)
         self.footer = Footer()
-        self.info_panel_grid = GameInfoPanel(self.players)
         self.header = Header(style="white on black")
+        self.info_panels = [PlayerInfoBox(name = "InfoPanel", player=p) for p in self.players]
 
         await self.view.dock(self.header,edge = "top")
         await self.view.dock(self.footer,edge="bottom")
-        # bug where size needs to be set but i dont want it
-        await self.view.dock(self.info_panel_grid,edge="left",size=30)
-        await self.view.dock(self.game_board, edge="top")
+        self.grid = await self.view.dock_grid(edge = "top")
+
+        self.grid.add_column("col0", fraction=1, max_size=30)
+        self.grid.add_column("col1", fraction=2)
+        self.grid.add_row("row1", fraction=1, max_size = 7)
+        self.grid.add_row("row2", fraction=1, max_size = 7)
+        self.grid.add_row("row3", fraction=1, max_size=7)
+
+        self.grid.add_areas(
+                panel1  = "col0,row1",
+                panel2  = "col0,row2",
+                board   = "col1,row1-start|row3-end",
+        )
+        self.grid.place(panel1  = self.info_panels[0])
+        self.grid.place(panel2  = self.info_panels[1])
+        self.grid.place(board   = self.game_board)
 
     async def action_reset_board(self):
         self.game_board.reset_game()
 
+    def update_panels(self, player):
+        """Update player panel info"""
+        for p in self.info_panels:
+            if p.player.name == player.name:
+                p.new_content(player)
+
     async def handle_game_status_note(self, message: GameStatusNote):
         # handle win
         if message.winner:
-            self.info_panel_grid.update_panels(message.winner)
+            self.update_panels(message.winner)
         else:
             pass
             # TODO: Handle Ties
-
-
 
 if __name__ == "__main__":
     TextTacToe.run(title = "TextTacToe",log="textual.log",  log_verbosity=3)

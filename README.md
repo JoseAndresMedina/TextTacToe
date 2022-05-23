@@ -2,7 +2,7 @@
 
 ![View Of TextTacToe](img/TextTacToe_gh.png "TextTacToe View")
 
-This is an TUI App for playing TicTacToe built using [Textual](https://github.com/willmcgugan/textual/). Currently meant to help me understand a but if asynchronous programming as well as learn Textual.
+This is an TUI App for playing TicTacToe built using [Textual](https://github.com/willmcgugan/textual/) in Python3. Currently meant to help me understand a but if asynchronous programming as well as learn Textual.
 
 ## Dependencies
 
