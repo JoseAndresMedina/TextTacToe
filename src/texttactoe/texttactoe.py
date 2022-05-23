@@ -14,7 +14,6 @@ from rich import box
 from rich.console import RenderableType
 
 
-# TODO: add info in messages about player 
 class GameStatusNote(Message):
     """A Message meant for the App to update game info"""
     def __init__(self, sender, winner=None, ) -> None:
