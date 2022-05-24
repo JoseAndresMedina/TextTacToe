@@ -1,2 +1,4 @@
 .python-version
 **/textual.log
+**/__pycache__
+dist/

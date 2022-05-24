@@ -22,6 +22,3 @@ To run simply run TextTacToe.py
 ```
 python TextTacToe.py
 ```
-
-## Development 
-TODO
