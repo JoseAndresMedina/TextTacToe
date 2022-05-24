@@ -1,29 +1,61 @@
 import argparse
-from sys import version_info
-from __init__ import __version__
+from sys import version_info, exit
+import random
+from .__init__ import __version__
 
 from textual.app import App
 from textual.widgets import Footer, Header
 
-from __init__ import TTTBoard, GameStatusNote, Player, PlayerPanel
+from .tttboard import TTTBoard, GameStatusNote
+from .player_panel import PlayerPanel
+from .player import Player
 
 def run(argv=None):
     parser = argparse.ArgumentParser(description="A tictactoe TUI.")
+    parser.prog = "texttactoe"
 
-    parser.add_argument("--version","-v", action="version", version=get_version(), help="display version information",)
-    parser.add_argument("--player1","-p1", help="Name of Player1",)
-    parser.add_argument("--player2","-p2", help="Name of Player2",)
+    parser.add_argument("-v", "--version"   ,action="version", version=get_version(), help="display version information",)
+    parser.add_argument("-p1", "--player1"  ,default="Player1", help="Name of Player1",)
+    parser.add_argument("-p2", "--player2"  ,default="Player2", help="Name of Player2",)
+    parser.add_argument("-c1", "--color1"   ,default="rgb(0,161,162)", help="Color of Player1",)
+    parser.add_argument("-c2", "--color2"   ,default="yellow", help="Color of Player2",)
+    parser.add_argument("-r", "--random"    ,action="store_true", help="Randomize player colors")
 
     args = parser.parse_args(argv)
 
-    TextTacToe.run(title = "TextTacToe",log="textual.log",  log_verbosity=3)
+
+    if args.random:
+        vals =["red","green","blue","yellow","cyan","Magenta","bright_yellow","bright_cyan"]
+        r1 = random.sample(vals,1)
+        r2=r1
+        while r1[0]==r2[0]:
+            r2 = random.sample(vals,1)
+        args.color1 =  r1[0]
+        args.color2 =  r2[0]
+
+
+
+    TextTacToe.run(
+        title = "TextTacToe",
+        log="textual.log",  
+        log_verbosity=3,
+        player1 = Player(args.player1,color=args.color1),
+        player2 = Player(args.player2,color=args.color2),
+        )
 
 
 class TextTacToe(App):
 
-    player1 = Player("Alice",color="rgb(0,161,162)")
-    player2 = Player("Bob",color="yellow")
-    players = [player1, player2]
+    def __init__(self, *args, 
+        player1, 
+        player2, 
+        **kwargs):
+
+        self.player1 = player1
+        self.player2 = player2
+        self.players = [player1, player2]
+
+        super().__init__(*args, **kwargs)
 
     async def on_load(self) -> None:
         """Bind keys with the app loads (but before entering application mode)"""

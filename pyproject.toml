@@ -1,8 +1,8 @@
 [tool.poetry]
 name = "texttactoe"
 version = "0.1.0"
-description = "A TUI app built to play tictactoe."
-keywords = ["tictactoe","game"]
+description = "A TUI to play tictactoe."
+keywords = ["tictactoe","game","textual"]
 readme = "README.md"
 authors = ["Jose Medina <jose.amedina96@gmail.com>"]
 license = "MIT"
@@ -15,7 +15,7 @@ textual = "^0.1.18"
 [tool.poetry.dev-dependencies]
 
 [tool.poetry.scripts]
-texttactoe = "texttactoe.app:run"
+texttactoe = "texttactoe.__main__:run"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

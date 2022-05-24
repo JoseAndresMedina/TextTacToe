@@ -24,7 +24,7 @@ class PlayerPanel(Widget):
         return Panel(
                 Align.left(self.content),
                 title=f"{self.player.name}",
-                border_style="green" if self.mouse_over else f"{self.player.color}",
+                border_style="bright_white" if self.mouse_over else f"{self.player.color}",
                 box=box.ROUNDED,
                 )
 
