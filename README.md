@@ -3,6 +3,8 @@ This is an TUI App for playing TicTacToe built using [Textual](https://github.co
 
 ![View Of TextTacToe](img/TextTacToe.gif)
 
+>**NOTE:** Due to the fact that textual t is still in the develepment stage, I reccomend you install this only in virtual env. This app will probably change heavily as textual changes.
+
 ## Dependencies
 
 Textual:
