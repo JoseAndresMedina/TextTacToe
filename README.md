@@ -26,7 +26,7 @@ or
 ```
 texttactoe
 ```
- The following options are available for gameplay
+ The following options are available for customization. Note that the color options currently do not check whether they are a valid colors. We use textual/rich to customize the color and so it mus be a valid choice from these frameworks.
 ```
 usage: texttactoe [-h] [-v] [-p1 PLAYER1] [-p2 PLAYER2] [-c1 COLOR1] [-c2 COLOR2] [-r]
 
